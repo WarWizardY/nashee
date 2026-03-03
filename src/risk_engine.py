@@ -79,6 +79,19 @@ class RiskInputs:
     gst_anomaly_score: float = 0.0
     bank_anomaly_score: float = 0.0
     financials_found_flag: bool = False
+    # India-specific GST reconciliation features
+    gst_itc_variance_ratio: float = 0.0
+    gst_itc_top_supplier_share: float = 0.0
+    gst_itc_dependency_ratio: float = 0.0
+    gst_cash_tax_ratio: float = 0.0
+    gst_reverse_charge_turnover_ratio: float = 0.0
+    # Bank intelligence
+    bank_cash_deposit_ratio: float = 0.0
+    bank_round_tripping_score: float = 0.0
+    bank_top_counterparty_share: float = 0.0
+    bank_counterparty_hhi: float = 0.0
+    bank_total_txn_volume: float = 0.0
+    bank_related_party_transfer_share: float = 0.0
 
 
 @dataclass
@@ -262,6 +275,53 @@ def simple_rule_based_decision(
         conditions_score += float(overlays.get("bank_anomaly_factor", -0.05)) * features.bank_anomaly_score
         reasons.append("Bank flow anomalies detected.")
 
+    # India-specific GST reconciliation overlays
+    if features.gst_itc_variance_ratio > 0.0:
+        # High mismatch between 2A and 3B is a red flag
+        conditions_score -= min(0.08, features.gst_itc_variance_ratio * 0.08)
+        reasons.append("GSTR-2A vs 3B mismatch observed (ITC reconciliation variance).")
+
+    if features.gst_itc_top_supplier_share > 0.0:
+        if features.gst_itc_top_supplier_share > 0.35:
+            character_score -= 0.04
+            reasons.append("High ITC concentration to a small set of suppliers.")
+
+    if features.gst_itc_dependency_ratio > 0.0:
+        if features.gst_itc_dependency_ratio > 0.9:
+            conditions_score -= 0.03
+            reasons.append("High dependency on ITC to discharge output tax.")
+
+    if features.gst_cash_tax_ratio > 0.0:
+        if features.gst_cash_tax_ratio < 0.15:
+            conditions_score -= 0.02
+            reasons.append("Low cash tax payment ratio (higher reliance on ITC).")
+
+    if features.gst_reverse_charge_turnover_ratio > 0.0:
+        if features.gst_reverse_charge_turnover_ratio > 0.2:
+            conditions_score -= 0.02
+            reasons.append("Elevated reverse-charge turnover ratio flagged.")
+
+    # Bank intelligence overlays
+    if features.bank_cash_deposit_ratio > 0.0:
+        if features.bank_cash_deposit_ratio > 0.4:
+            conditions_score -= 0.03
+            reasons.append("High cash deposit ratio observed in bank statements.")
+
+    if features.bank_round_tripping_score > 0.0:
+        if features.bank_round_tripping_score > 0.3:
+            conditions_score -= 0.04
+            reasons.append("Round-tripping patterns suspected from bank inflow/outflow loops.")
+
+    if features.bank_top_counterparty_share > 0.0:
+        if features.bank_top_counterparty_share > 0.35:
+            character_score -= 0.03
+            reasons.append("High dependence on a small number of banking counterparties.")
+
+    if features.bank_related_party_transfer_share > 0.0:
+        if features.bank_related_party_transfer_share > 0.25:
+            character_score -= 0.03
+            reasons.append("Significant share of bank flows appear to be related-party transfers.")
+
     # Ensure 5C scores are within [0, 1]
     def _clamp(x: float) -> float:
         return max(0.0, min(1.0, x))
@@ -397,5 +457,16 @@ def build_risk_inputs_from_summary(summary: Dict[str, Any]) -> RiskInputs:
         gst_anomaly_score=float(summary.get("gst_anomaly_score", 0.0)),
         bank_anomaly_score=float(summary.get("bank_anomaly_score", 0.0)),
         financials_found_flag=bool(summary.get("financials_found_flag", False)),
+        gst_itc_variance_ratio=float(summary.get("gst_itc_variance_ratio", 0.0)),
+        gst_itc_top_supplier_share=float(summary.get("gst_itc_top_supplier_share", 0.0)),
+        gst_itc_dependency_ratio=float(summary.get("gst_itc_dependency_ratio", 0.0)),
+        gst_cash_tax_ratio=float(summary.get("gst_cash_tax_ratio", 0.0)),
+        gst_reverse_charge_turnover_ratio=float(summary.get("gst_reverse_charge_turnover_ratio", 0.0)),
+        bank_cash_deposit_ratio=float(summary.get("bank_cash_deposit_ratio", 0.0)),
+        bank_round_tripping_score=float(summary.get("bank_round_tripping_score", 0.0)),
+        bank_top_counterparty_share=float(summary.get("bank_top_counterparty_share", 0.0)),
+        bank_counterparty_hhi=float(summary.get("bank_counterparty_hhi", 0.0)),
+        bank_total_txn_volume=float(summary.get("bank_total_txn_volume", 0.0)),
+        bank_related_party_transfer_share=float(summary.get("bank_related_party_transfer_share", 0.0)),
     )
 

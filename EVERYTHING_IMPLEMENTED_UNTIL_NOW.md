@@ -153,6 +153,55 @@ These are the **next concrete implementation steps** that will turn the current 
   - **GST Returns / Bank Statements / ITRs** from the PS are mapped to simple CSV formats for this prototype.
   - This forms the “structured features” layer for the risk engine and CAM.
 
+---
+
+## 4.2.1 NEW: GSTR-2A vs GSTR-3B Reconciliation (India-Specific) (`src/gst_reconciliation.py` + `src/main.py`)
+
+- **What it adds**
+  - The CLI now supports *separate* GST inputs:
+    - `--gstr-2a-csv <path>`
+    - `--gstr-3b-csv <path>`
+  - A production-style reconciliation module that normalizes common export formats and computes **India-specific GST intelligence**:
+    - **ITC mismatch**: total 2A vs total 3B variance + variance ratio.
+    - **Supplier concentration**: top supplier ITC share and HHI concentration index.
+    - **Suspicious vendor heuristics**: count + examples of high-concentration / low-invoice-count suppliers.
+    - **Optional supplier clustering** (best-effort; uses sklearn if available).
+    - **India-specific ratios from 3B**:
+      - ITC dependency ratio.
+      - Cash tax ratio.
+      - Refund intensity + refund approval ratio.
+      - Reverse charge turnover ratio.
+
+- **Where it plugs in**
+  - `src/main.py` runs reconciliation when both 2A and 3B are provided and merges features into `extra_signals`.
+  - These features are:
+    - Logged into the feature store.
+    - Passed through to the 5C risk engine (via summary → `RiskInputs`).
+
+- **Why it matters**
+  - This closes a major “Indian context sensitivity” gap by making GSTR-2A vs 3B reconciliation **first-class and explainable**, rather than a future architecture note.
+
+### 4.2.2 NEW: Bank Statement Intelligence (`src/bank_intelligence.py` + `src/main.py`)
+
+- **What it adds**
+  - A dedicated **bank flows intelligence** layer that computes:
+    - `bank_cash_deposit_ratio`: share of cash-like credits over total credits (based on narration keywords).
+    - `bank_round_tripping_score`: heuristic score (0–1) for circular money flows using counterparty × month aggregates.
+    - `bank_top_counterparty_share` and `bank_counterparty_hhi`: concentration of banking counterparties by transaction volume.
+    - `bank_related_party_transfer_share`: best-effort estimate of related-party style transfers based on counterparty strings.
+  - These metrics are added to `extra_signals` in `main.py` whenever a bank CSV is provided and are stored in the feature store.
+
+- **How the risk engine uses it**
+  - `RiskInputs` now includes the bank intelligence fields.
+  - The 5C engine maps them primarily into **Conditions** and **Character**:
+    - High `bank_cash_deposit_ratio` → Conditions penalty (possible cash-heavy profile).
+    - High `bank_round_tripping_score` → Conditions penalty (round-tripping behaviour suspected).
+    - High `bank_top_counterparty_share` → Character penalty (dependence on a narrow counterparty set).
+    - High `bank_related_party_transfer_share` → Character penalty (bank flows dominated by inferred related parties).
+
+- **Why it matters**
+  - Moves bank statement analysis from simple inflow/outflow totals toward **behavioural cash-flow intelligence**, aligned with Indian circular-trading and related-party risk patterns.
+
 ### 4.3 Unstructured Documents Ingestion (`src/unstructured_ingestion.py`)
 
 - **What it does**

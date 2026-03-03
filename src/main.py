@@ -18,6 +18,8 @@ from .stress_test import run_stress_tests
 from .research_agent import summarize_research
 from .transformer_nlp import analyze_texts_with_transformer
 from .loan_extractor import extract_sanction_loan_features
+from .gst_reconciliation import reconcile_gstr2a_vs_3b
+from .bank_intelligence import analyze_bank_flows
 import uuid
 
 app = typer.Typer(help="Intelli-Credit prototype CLI – runs a simple end-to-end CAM generation flow.")
@@ -28,7 +30,9 @@ def run_appraisal(
     company_name: str = typer.Option(..., help="Name of the borrowing company."),
     sector: str = typer.Option(..., help="Sector/industry of the company."),
     requested_limit: float = typer.Option(..., help="Requested loan limit (INR)."),
-    gst_csv: Optional[Path] = typer.Option(None, help="Path to GST returns CSV (prototype format)."),
+    gst_csv: Optional[Path] = typer.Option(None, help="Path to GST returns CSV (legacy prototype format)."),
+    gstr2a_csv: Optional[Path] = typer.Option(None, "--gstr-2a-csv", help="Path to GSTR-2A CSV export."),
+    gstr3b_csv: Optional[Path] = typer.Option(None, "--gstr-3b-csv", help="Path to GSTR-3B CSV export."),
     bank_csv: Optional[Path] = typer.Option(None, help="Path to bank statements CSV (prototype format)."),
     fin_csv: Optional[Path] = typer.Option(None, help="Path to ITR/financials CSV (prototype format)."),
     # Unstructured documents (multiple PDFs)
@@ -80,13 +84,26 @@ def run_appraisal(
         policy_snapshot=RISK_POLICY,
     )
 
+    # Legacy GST loader (single CSV)
     gst_df = ingestion.load_gst_returns(gst_csv) if gst_csv else None
+    # New: separate 2A/3B inputs
+    gstr2a_df = ingestion.load_gst_returns(gstr2a_csv) if gstr2a_csv else None
+    gstr3b_df = ingestion.load_gst_returns(gstr3b_csv) if gstr3b_csv else None
     bank_df = ingestion.load_bank_statements(bank_csv) if bank_csv else None
     fin_df = ingestion.load_itr_financials(fin_csv) if fin_csv else None
     application.status = ApplicationStatus.INGESTED
 
     # Collect extra risk signals from all other input types
     extra_signals: dict[str, Any] = {}
+    # GST reconciliation (GSTR-2A vs 3B) – India-specific intelligence layer
+    if gstr2a_df is not None and gstr3b_df is not None:
+        extra_signals.update(reconcile_gstr2a_vs_3b(gstr2a_df, gstr3b_df))
+        # also record basic periods for completeness flags
+        if "period" in gstr2a_df.columns:
+            extra_signals["gstr2a_periods"] = int(gstr2a_df["period"].nunique())
+        if "period" in gstr3b_df.columns:
+            extra_signals["gstr3b_periods"] = int(gstr3b_df["period"].nunique())
+
 
     # Derive optional document_type hint from officer notes, e.g. "document_type=corporate_annual_report"
     document_type: str | None = None
@@ -175,6 +192,9 @@ def run_appraisal(
         extra_signals.update(compute_gst_anomalies(gst_df))
     if bank_df is not None:
         extra_signals.update(compute_bank_anomalies(bank_df))
+
+        # Bank flow intelligence (cash ratio, round-tripping, counterparty concentration)
+        extra_signals.update(analyze_bank_flows(bank_df))
 
     # Data completeness / confidence
     provided_sources = {

@@ -73,6 +73,11 @@ def summarize_inputs(
     if extra_signals:
         summary.update(extra_signals)
 
+    # Backward/forward-compatible GST presence flag: accept gstr2a/gstr3b periods too
+    if summary.get("gst_periods") is None:
+        if summary.get("gstr3b_periods") is not None:
+            summary["gst_periods"] = summary.get("gstr3b_periods")
+
     # Flag whether we found any financials at all (CSV or Document AI)
     financials_found = False
     if summary.get("latest_revenue") or summary.get("latest_total_debt") or summary.get("latest_net_worth"):
