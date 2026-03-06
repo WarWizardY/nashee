@@ -383,10 +383,10 @@ Legend:
 - [x] Identify required unstructured documents: annual reports, minutes, rating, shareholding, legal, sanction letters.
 - [ ] Implement Databricks ingestion pipelines for GST, bank, ITR.
 - [ ] Define schemas for GST, bank, and financials (bronze/silver tables).
-- [ ] Implement OCR + Document AI pipeline for PDFs (LayoutLM/Donut integration).
+- [x] Implement OCR + Document AI pipeline for PDFs (LayoutLM/Table Transformer integration).
 - [ ] Implement GST 2A vs 3B reconciliation logic and mismatch flags.
 - [ ] Implement anomaly detection models (Isolation Forest + Autoencoder) for GST/bank.
-- [ ] Implement transaction graph building and GNN (GraphSAGE/GAT) training/inference.
+- [x] Implement transaction graph building and GNN (GraphSAGE/GAT) training/inference.
 
 ### 7.3 Research Agent (Pillar 2)
 - [x] Define scope of secondary research (MCA, e-Courts, news, rating, sector reports).

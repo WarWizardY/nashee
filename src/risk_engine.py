@@ -76,6 +76,8 @@ class RiskInputs:
     promoter_risk_score: float = 0.0
     research_litigation_news_count: float = 0.0
     research_sector_headwind_score: float = 0.0
+    research_mca_risk_flag: float = 0.0
+    research_ecourts_severe_risk: float = 0.0
     gst_anomaly_score: float = 0.0
     bank_anomaly_score: float = 0.0
     financials_found_flag: bool = False
@@ -254,7 +256,6 @@ def simple_rule_based_decision(
         character_score += float(overlays.get("high_interest_factor", -0.05))
         reasons.append("High interest rate detected on existing borrowing.")
 
-    # Research / anomaly overlays
     if features.news_sentiment_score != 0.0:
         character_score += float(overlays.get("news_sentiment_factor", 0.05)) * features.news_sentiment_score
         reasons.append("External news sentiment incorporated into character assessment.")
@@ -266,6 +267,14 @@ def simple_rule_based_decision(
     if features.research_sector_headwind_score > 0.0:
         conditions_score += float(overlays.get("sector_headwind_factor", -0.05)) * features.research_sector_headwind_score
         reasons.append("Sector headwinds identified in external research.")
+
+    if features.research_mca_risk_flag > 0.0:
+        character_score += float(overlays.get("mca_risk_factor", -0.1)) * features.research_mca_risk_flag
+        reasons.append("MCA records flag company as Non-Compliant or Struck Off.")
+
+    if features.research_ecourts_severe_risk > 0.0:
+        character_score += float(overlays.get("ecourts_risk_factor", -0.15)) * features.research_ecourts_severe_risk
+        reasons.append("Severe litigation (NCLT / Insolvency) detected via e-Courts search.")
 
     if features.gst_anomaly_score > 0.0:
         conditions_score += float(overlays.get("gst_anomaly_factor", -0.05)) * features.gst_anomaly_score
@@ -454,6 +463,8 @@ def build_risk_inputs_from_summary(summary: Dict[str, Any]) -> RiskInputs:
         promoter_risk_score=float(summary.get("promoter_risk_score", 0.0)),
         research_litigation_news_count=float(summary.get("research_litigation_news_count", 0.0)),
         research_sector_headwind_score=float(summary.get("research_sector_headwind_score", 0.0)),
+        research_mca_risk_flag=float(summary.get("research_mca_risk_flag", 0.0)),
+        research_ecourts_severe_risk=float(summary.get("research_ecourts_severe_risk", 0.0)),
         gst_anomaly_score=float(summary.get("gst_anomaly_score", 0.0)),
         bank_anomaly_score=float(summary.get("bank_anomaly_score", 0.0)),
         financials_found_flag=bool(summary.get("financials_found_flag", False)),

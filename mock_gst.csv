@@ -1,0 +1,5 @@
+gstin,counterparty_gstin,taxable_value
+A,B,100
+B,C,200
+C,A,300
+C,D,50

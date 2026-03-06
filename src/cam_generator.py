@@ -79,10 +79,29 @@ def generate_cam_docx(
 
     # Character
     doc.add_heading("3.1 Character", level=3)
+    
+    # 3.1.1 Research Agent & NLP Signals
+    doc.add_heading("Research Agent & NLP Signals", level=4)
+    res_table = doc.add_table(rows=1, cols=2)
+    rhdr = res_table.rows[0].cells
+    rhdr[0].text = "Signal"
+    rhdr[1].text = "Observation"
+    
+    def _r_add_row(metric: str, value: str) -> None:
+        row_cells = res_table.add_row().cells
+        row_cells[0].text = metric
+        row_cells[1].text = value
+
+    if "news_sentiment_score" in input_summary:
+        _r_add_row("News Sentiment Score", f"{input_summary['news_sentiment_score']:.2f} (from FinBERT)")
+    if "research_mca_status" in input_summary:
+        _r_add_row("MCA Company Status", str(input_summary["research_mca_status"]))
+    if "research_ecourts_litigation_count" in input_summary:
+        _r_add_row("e-Courts Litigation Count", str(input_summary["research_ecourts_litigation_count"]))
+    
     doc.add_paragraph(
-        "Prototype: Character is inferred indirectly via financial prudence metrics "
-        "(leverage, limit vs revenue, margins). Future versions will integrate CIBIL, "
-        "litigation data, governance NLP, and external news."
+        "Note: Character assessment incorporates the above automated web-scraping "
+        "and FinBERT NLP sentiment signals."
     )
 
     # Capacity

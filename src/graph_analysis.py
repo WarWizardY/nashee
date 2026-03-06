@@ -7,6 +7,11 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
 
+try:
+    from .gnn_model import score_graph_with_gnn
+except ImportError:
+    score_graph_with_gnn = None
+
 
 def build_transaction_graph(
     gst_csv: Path | None = None,
@@ -84,6 +89,16 @@ def compute_graph_risk_scores(G: nx.DiGraph) -> Dict[str, Any]:
     if num_communities == 1 and G.number_of_nodes() > 5:
         graph_risk_score += 0.2
 
+    # Integrate PyTorch Geometric GNN predictions if available
+    gnn_risk_score = 0.0
+    high_risk_nodes = []
+    if score_graph_with_gnn is not None:
+        try:
+            gnn_risk_score, high_risk_nodes = score_graph_with_gnn(G)
+            graph_risk_score += (gnn_risk_score * 0.5) # weigh GNN output
+        except Exception as e:
+            print(f"Warning: GNN scoring failed: {e}")
+
     graph_risk_score = min(1.0, graph_risk_score)
 
     return {
@@ -93,6 +108,8 @@ def compute_graph_risk_scores(G: nx.DiGraph) -> Dict[str, Any]:
         "graph_num_communities": int(num_communities),
         "graph_example_cycles": example_cycles,
         "graph_top_central_entities": top_central_entities,
+        "gnn_risk_score": float(gnn_risk_score),
+        "gnn_high_risk_nodes": high_risk_nodes,
     }
 
 

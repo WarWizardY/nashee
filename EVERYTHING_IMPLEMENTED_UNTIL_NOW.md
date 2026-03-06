@@ -111,11 +111,9 @@ This file captures **exactly what is implemented so far in this repo**, and what
 To avoid confusion, these items are **only described in the architecture; they are not coded or wired up** as of now:
 
 - Databricks data ingestion jobs and schemas.
-- OCR and Document AI (LayoutLM/Donut) pipelines.
-- Transaction graph construction and GNN training/inference.
 - Isolation Forest and Autoencoder anomaly detection pipelines.
-- FinBERT/DeBERTa-based risk NLP models (training and inference).
-- Web/MCA/e-Courts/news crawlers.
+- FinBERT/DeBERTa-based risk NLP models (beyond the current zero-shot prototype).
+- Web/MCA/e-Courts/news crawlers (beyond the current prototype scrapers).
 - XGBoost training, scoring service, and SHAP-based explanation service.
 - CAM template implementation and PDF/DOCX generator.
 - Web UI (file upload, notes input, CAM view) and orchestration backend.
@@ -354,6 +352,28 @@ These are the **next concrete implementation steps** that will turn the current 
       --related-party-csv data/related_party.csv
     ```
 
+### 4.9 Advanced Document AI & Layout Parsing (`src/document_ai/layout_parser.py`)
+
+- **What it does**
+  - Converts PDF pages to images using `PyMuPDF` (`fitz`) and `pdf2image`.
+  - Uses **Microsoft Table Transformer** (`microsoft/table-transformer-detection` via HuggingFace `transformers`) to detect the bounding boxes of tables on the image.
+  - Passes the image and layout information into **EasyOCR** for structure-aware text extraction.
+  - Wired into `src/unstructured_ingestion.py` as the primary extraction method, falling back to simple PyPDF2 text extraction if the deep learning models fail or are missing.
+
+- **How it maps to PS**
+  - Fulfils the requirement for complex Indian financial document parsing (LayoutLM/Table Transformers) that goes beyond simple text extraction.
+
+### 4.10 Graph Neural Network (GNN) Anomaly Detection (`src/gnn_model.py`)
+
+- **What it does**
+  - Dynamically synthesizes a fake transaction graph dataset containing normal subgraphs and anomalous "circular trading" rings (loops).
+  - Defines and trains a **PyTorch Geometric (PyG)** `GraphSAGE` node-classification model on this synthetic data in real-time.
+  - Integrates with the `networkx` graph generated in `src/graph_analysis.py`. The node features (in-degree, out-degree, amounts) are extracted from the real application data and passed through the trained GNN.
+  - The model outputs a probability (0 to 1) of the nodes belonging to a circular trading ring. This score is aggregated as `gnn_risk_score`.
+
+- **How it maps to PS**
+  - Fully implements the GNN pillar of the architecture, moving beyond simple cycle detection to actual deep learning graph anomaly detection.
+
 ---
 
 ## 5. How to Use This File Going Forward
@@ -378,8 +398,8 @@ Legend:
 ### 6.1 Document AI
 - [x] Basic PDF text extraction (PyPDF2).
 - [x] Keyword-based risk indicators from unstructured PDFs.
-- [~] OCR fallback integration (e.g., Tesseract via `pytesseract`) for scanned PDFs (scaffolded, optional dependency).
-- [x] Layout-aware parsing and table extraction (via `pdfplumber` prototype).
+- [x] Deep learning OCR integration (`easyocr`) for scanned PDFs.
+- [x] Layout-aware parsing and table extraction (via Microsoft Table Transformer).
 - [~] Structured field extraction from financial statements:
   - [x] Revenue (prototype).
   - [x] Debt (prototype).
@@ -397,7 +417,7 @@ Legend:
 - [x] Implement cycle detection and basic circular trading indicators (via `simple_cycles`).
 - [x] Implement community detection proxy (weakly connected components).
 - [x] Add graph-based risk score (combining cycles, centrality, communities).
-- [ ] Scaffold GNN model interfaces (GraphSAGE/GAT) for future training.
+- [x] Implement PyTorch Geometric GNN models (GraphSAGE/GAT) for circular trading detection.
 
 ### 6.3 Anomaly Detection
 - [ ] Define time-series features for GST and bank flows (monthly turnover, volatility, seasonality).
